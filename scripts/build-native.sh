@@ -108,8 +108,18 @@ hash_stdin() {
   fi
 }
 # Tie the runtime cache to the exact shell-files payload, so rebuilding the same
-# dpt version cannot silently reuse an older extracted copy.
-BUILD_ID="$(cd "$RES" && tar cf - shell-files | hash_stdin | cut -c1-12)"
+# dpt version cannot silently reuse an older extracted copy. Hash file contents
+# only: tar would include mtimes that change on every copy.
+BUILD_ID="$(
+  cd "$RES"
+  find shell-files -type f | LC_ALL=C sort | while IFS= read -r file; do
+    if command -v sha256sum >/dev/null 2>&1; then
+      sha256sum "$file"
+    else
+      shasum -a 256 "$file"
+    fi
+  done | hash_stdin | cut -c1-12
+)"
 printf '%s\n' "$BUILD_ID" > "$RES/goshell-build-id.txt"
 
 # Java tools must receive native-style paths on Windows; the script itself runs with
@@ -202,7 +212,12 @@ echo "Building native image..."
   -o "build/native/goshell" \
   -H:+ReportExceptionStackTraces \
   -H:+AddAllCharsets \
-  -H:IncludeResources='assets/.*|shell-files/.*|goshell-files\.list|goshell-version\.txt|goshell-build-id\.txt|META-INF/MANIFEST\.MF' \
+  -H:IncludeResources='assets/.*' \
+  -H:IncludeResources='shell-files/.*' \
+  -H:IncludeResources='goshell-files\.list' \
+  -H:IncludeResources='goshell-version\.txt' \
+  -H:IncludeResources='goshell-build-id\.txt' \
+  -H:IncludeResources='META-INF/MANIFEST\.MF' \
   --enable-url-protocols=jar,file \
   --initialize-at-run-time=com.luoye.dpt,com.wind.meditor \
   "${CONFIG_ARGS[@]}" \
