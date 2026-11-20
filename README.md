@@ -77,13 +77,28 @@ Linux 产物依赖 glibc ≥ 2.34（本次在 Debian 13 上构建，只额外依
 # 当前平台：构建 + 打包到 dist/goshell-<os>-<arch>.tar.gz
 scripts/package-local.sh
 
-# 全平台：推送当前分支，触发 GitHub Actions 的四平台矩阵，下载到 dist/
+# 全平台构建：推送当前分支，触发 Actions 四平台矩阵，下载到 dist/
+# 只产生 Actions artifact，不创建 Release
 scripts/package-all.sh
+
+# 全平台构建 + 发布 GitHub Release：创建并推送 v* tag，
+# CI 构建完成后自动创建 Release 并上传四个平台的包
+scripts/package-all.sh --release v2.21.0
+```
+
+也可以手动发布：
+
+```bash
+git tag -a v2.21.0 -m "goshell v2.21.0"
+git push origin v2.21.0
+# 工作流构建完成后，Release 会自动出现，资产为四个 .tar.gz + .sha256
 ```
 
 `package-all.sh` 依赖 `gh`（GitHub CLI）并已 `gh auth login`，同时要求工作区干净、已配置 `origin` 远程。native-image 本身不支持交叉编译，所以全平台构建只能走 CI。
 
 每个平台的包内含：`goshell`（Windows 为 `goshell.exe`）、规则模板、配置模板、`README.md`、`USAGE.md`，以及对应的 `.sha256`。
+
+> 发布 Release 只在 push `v*` tag 时触发；普通 `workflow_dispatch` 构建不会创建 Release，避免每次构建都产生一个版本。
 
 ### 更新 dpt 版本
 

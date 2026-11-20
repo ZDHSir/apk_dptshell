@@ -7,17 +7,38 @@
 # workflow, waits for it, and downloads the packaged artifacts into dist/.
 #
 # Usage:
-#   scripts/package-all.sh            # build all platforms via GitHub Actions
-#   scripts/package-all.sh --local    # build/package only the current platform
+#   scripts/package-all.sh                # build all platforms (Actions artifacts)
+#   scripts/package-all.sh --release v2.21.0
+#                                         # build and publish a GitHub Release
+#   scripts/package-all.sh --local        # build/package only the current platform
 #
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-if [[ "${1:-}" == "--local" ]]; then
-  exec "$ROOT/scripts/package-local.sh"
-fi
+MODE=build
+TAG=""
+case "${1:-}" in
+  "")
+    ;;
+  --local)
+    exec "$ROOT/scripts/package-local.sh"
+    ;;
+  --release)
+    MODE=release
+    TAG="${2:-}"
+    if [[ -z "$TAG" ]]; then
+      echo "usage: $0 --release <tag>   e.g. $0 --release v2.21.0" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "unknown option: $1" >&2
+    echo "usage: $0 [--release <tag> | --local]" >&2
+    exit 1
+    ;;
+esac
 
 command -v git >/dev/null 2>&1 || { echo "error: git is required" >&2; exit 1; }
 command -v gh >/dev/null 2>&1 || {
@@ -56,20 +77,54 @@ if [[ "$BRANCH" == "HEAD" ]]; then
   exit 1
 fi
 
-echo "Pushing $BRANCH to origin..."
-git push origin "$BRANCH"
+find_run() {
+  local ref="$1" attempts="$2" run_id="" i
+  for ((i = 0; i < attempts; i++)); do
+    run_id="$(gh run list --workflow=release.yml --branch "$ref" --limit 1 \
+      --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)"
+    if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+      # Tag pushes are not always matched by --branch on older gh versions.
+      run_id="$(gh run list --workflow=release.yml --limit 10 \
+        --json databaseId,headBranch \
+        --jq ".[] | select(.headBranch==\"$ref\") | .databaseId" 2>/dev/null | head -1 || true)"
+    fi
+    if [[ -n "$run_id" && "$run_id" != "null" ]]; then
+      echo "$run_id"
+      return 0
+    fi
+    sleep 3
+  done
+  return 1
+}
 
-echo "Triggering workflow build-native on $BRANCH..."
-gh workflow run release.yml --ref "$BRANCH"
+if [[ "$MODE" == "release" ]]; then
+  if ! [[ "$TAG" =~ ^v[0-9] ]]; then
+    echo "error: release tag should look like v2.21.0 (got: $TAG)" >&2
+    exit 1
+  fi
+  if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+    echo "error: tag $TAG already exists locally." >&2
+    exit 1
+  fi
 
-RUN_ID=""
-for _ in {1..15}; do
-  RUN_ID="$(gh run list --workflow=release.yml --branch "$BRANCH" --limit 1 \
-    --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)"
-  [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break
-  RUN_ID=""
-  sleep 3
-done
+  echo "Pushing $BRANCH and creating tag $TAG..."
+  git push origin "$BRANCH"
+  git tag -a "$TAG" -m "goshell $TAG"
+  git push origin "$TAG"
+
+  echo "Waiting for the tag build to register..."
+  RUN_ID="$(find_run "$TAG" 20 || true)"
+else
+  echo "Pushing $BRANCH to origin..."
+  git push origin "$BRANCH"
+
+  echo "Triggering workflow build-native on $BRANCH..."
+  gh workflow run release.yml --ref "$BRANCH"
+
+  echo "Waiting for the workflow run to register..."
+  RUN_ID="$(find_run "$BRANCH" 15 || true)"
+fi
+
 if [[ -z "$RUN_ID" ]]; then
   echo "error: could not find the triggered workflow run." >&2
   echo "       open the Actions tab and start 'build-native' manually." >&2
@@ -88,6 +143,11 @@ while IFS= read -r file; do
   mv -f "$file" dist/
 done < <(find dist/_ci -type f \( -name '*.tar.gz' -o -name '*.sha256' \))
 rm -rf dist/_ci
+
+if [[ "$MODE" == "release" ]]; then
+  echo
+  echo "GitHub Release: $(gh release view "$TAG" --json url --jq .url)"
+fi
 
 echo
 echo "Packaged:"
