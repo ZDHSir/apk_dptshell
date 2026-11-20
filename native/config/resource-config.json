@@ -1,0 +1,27 @@
+{
+  "resources":{
+  "includes":[{
+    "pattern":"\\QMETA-INF/native/libconscrypt.so\\E"
+  }, {
+    "pattern":"\\QMETA-INF/native/libconscrypt_openjdk_jni-linux-x86_64.so\\E"
+  }, {
+    "pattern":"\\QMETA-INF/native/libconscrypt_openjdk_jni.so\\E"
+  }, {
+    "pattern":"\\QMETA-INF/services/java.lang.System$LoggerFinder\\E"
+  }, {
+    "pattern":"\\QMETA-INF/services/java.net.spi.URLStreamHandlerProvider\\E"
+  }, {
+    "pattern":"\\QMETA-INF/services/java.time.zone.ZoneRulesProvider\\E"
+  }, {
+    "pattern":"\\QMETA-INF/services/javax.xml.parsers.DocumentBuilderFactory\\E"
+  }, {
+    "pattern":"\\Qassets/dpt.jks\\E"
+  }, {
+    "pattern":"\\Qassets/public.xml\\E"
+  }, {
+    "pattern":"\\Qfastjson2.properties\\E"
+  }, {
+    "pattern":"java.base:\\Qjdk/internal/icu/impl/data/icudt72b/nfkc.nrm\\E"
+  }]},
+  "bundles":[]
+}

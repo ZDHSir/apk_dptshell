@@ -1,0 +1,100 @@
+name: build-native
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: goshell-linux-x64
+          - os: macos-13
+            artifact: goshell-macos-x64
+          - os: macos-14
+            artifact: goshell-macos-arm64
+          - os: windows-latest
+            artifact: goshell-windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "21"
+          distribution: "graalvm-community"
+          native-image: "true"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        shell: bash
+        run: scripts/build-native.sh
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN=build/native/goshell
+          [[ -f "$BIN.exe" ]] && BIN="$BIN.exe"
+          "$BIN" -v
+
+          mkdir -p build/smoke-default
+          "$BIN" -f testapp/fixture.apk -o build/smoke-default
+          test -f build/smoke-default/fixture_signed.apk
+
+          keytool -genkeypair -keystore build/smoke.jks -storepass smokepass \
+            -keypass smokepass -alias smoke -keyalg RSA -keysize 2048 -validity 3650 \
+            -dname "CN=goshell ci" >/dev/null 2>&1
+
+          # JSON consumed by a native Windows JVM must use D:/... rather than /d/...
+          KS="$PWD/build/smoke.jks"
+          if command -v cygpath >/dev/null 2>&1; then KS="$(cygpath -m "$KS")"; fi
+          cat > build/smoke-config.json <<JSON
+          {
+            "shellPkgName": "<random>",
+            "signature": {
+              "keystore": "$KS",
+              "alias": "smoke",
+              "storepass": "smokepass",
+              "keypass": "smokepass"
+            }
+          }
+          JSON
+          mkdir -p build/smoke-custom
+          "$BIN" -f testapp/fixture.apk -c build/smoke-config.json -vs -o build/smoke-custom
+          test -f build/smoke-custom/fixture_signed.apk
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="${{ matrix.artifact }}"
+          rm -rf "pkg/$NAME"
+          mkdir -p "pkg/$NAME" dist
+          if [[ -f build/native/goshell ]]; then
+            cp build/native/goshell "pkg/$NAME/goshell"
+          else
+            cp build/native/goshell.exe "pkg/$NAME/goshell.exe"
+          fi
+          cp libs/dpt/dpt-exclude-classes-template.rules \
+             libs/dpt/dpt-protect-config-template.json \
+             README.md "pkg/$NAME/"
+          tar -czf "dist/$NAME.tar.gz" -C pkg "$NAME"
+          if command -v sha256sum >/dev/null 2>&1; then
+            (cd dist && sha256sum "$NAME.tar.gz" > "$NAME.sha256")
+          else
+            (cd dist && shasum -a 256 "$NAME.tar.gz" > "$NAME.sha256")
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/*
+          if-no-files-found: error
