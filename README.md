@@ -28,10 +28,10 @@ native/config-extra/          # 手工补充的反射配置（fastjson2 setter �
 scripts/build-native.sh       # 构建当前平台的原生二进制
 scripts/trace-config.sh       # 重新生成 native-image 配置
 scripts/package-local.sh      # 构建并打包当前平台
-scripts/package-all.sh        # 触发 GitHub Actions 构建四平台并下载产物
+scripts/package-all.sh        # 触发 GitHub Actions 构建 Linux/Windows 并下载产物
 testapp/fixture.apk           # 1.4KB 的最小 APK，用于构建后冒烟测试
 USAGE.md                      # 给最终用户的使用说明（打包时一并附带）
-.github/workflows/release.yml # 四平台构建（native-image 不支持交叉编译）
+.github/workflows/release.yml # Linux x64 / Windows x64 构建（native-image 不支持交叉编译）
 ```
 
 构建产物为 `build/native/goshell`（Windows 为 `goshell.exe`）。
@@ -65,7 +65,7 @@ scripts/build-native.sh
 3. 通过 `java -jar libs/dpt/dpt.jar -v` 读取版本号
 4. 调用 `native-image`，把 `assets/`、`shell-files/`、`META-INF/MANIFEST.MF` 都嵌入二进制
 
-**native-image 不支持交叉编译**，Windows/macOS 的二进制必须在对应系统上构建。仓库里的 GitHub Actions 工作流用矩阵分别构建四个平台，推送 `v*` tag 或手动触发即可下载产物。
+**native-image 不支持交叉编译**，Windows 的二进制必须在 Windows 上构建。仓库里的 GitHub Actions 工作流用矩阵分别构建 **Linux x64 和 Windows x64**，推送 `v*` tag 或手动触发即可下载产物。
 
 GitHub Actions 使用 **GraalVM Community** 构建，产物可自由分发；如果本地用 Oracle GraalVM 构建，请自行确认其许可条款。两种发行版生成的二进制行为一致。
 
@@ -77,7 +77,7 @@ Linux 产物依赖 glibc ≥ 2.34（本次在 Debian 13 上构建，只额外依
 # 当前平台：构建 + 打包到 dist/goshell-<os>-<arch>.tar.gz
 scripts/package-local.sh
 
-# 全平台构建：推送当前分支，触发 Actions 四平台矩阵，下载到 dist/
+# 全平台构建：推送当前分支，触发 Actions 双平台矩阵（Linux x64 / Windows x64），下载到 dist/
 # 只产生 Actions artifact，不创建 Release
 scripts/package-all.sh
 
@@ -180,7 +180,6 @@ GRAALVM_HOME=/path/to/graalvm-21 scripts/build-native.sh
 | 平台 | 缓存根目录 |
 |---|---|
 | Linux | `$XDG_CACHE_HOME/goshell` 或 `~/.cache/goshell` |
-| macOS | `~/Library/Caches/goshell` |
 | Windows | `%LOCALAPPDATA%\goshell` |
 
 根目录下：

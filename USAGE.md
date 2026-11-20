@@ -93,7 +93,6 @@ adb install -r out/app/app_signed.apk
 首次运行会把内嵌的壳资源解到：
 
 - Linux：`~/.cache/goshell`
-- macOS：`~/Library/Caches/goshell`
 - Windows：`%LOCALAPPDATA%\goshell`
 
 之后自动复用；可用 `GOSHELL_HOME` 指向包含 `shell-files/` 的目录覆盖。

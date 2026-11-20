@@ -16,10 +16,6 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact: goshell-linux-x64
-          - os: macos-13
-            artifact: goshell-macos-x64
-          - os: macos-14
-            artifact: goshell-macos-arm64
           - os: windows-latest
             artifact: goshell-windows-x64
     runs-on: ${{ matrix.os }}

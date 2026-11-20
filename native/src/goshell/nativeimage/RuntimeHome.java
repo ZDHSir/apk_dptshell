@@ -272,9 +272,6 @@ public final class RuntimeHome {
             }
             return new File(userHome, "AppData\\Local\\goshell");
         }
-        if (os.contains("mac") || os.contains("darwin")) {
-            return new File(userHome, "Library/Caches/goshell");
-        }
         String xdg = System.getenv("XDG_CACHE_HOME");
         if (!isBlank(xdg)) {
             return new File(xdg, "goshell");

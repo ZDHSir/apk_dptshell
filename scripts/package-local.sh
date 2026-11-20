@@ -10,10 +10,9 @@ cd "$ROOT"
 
 case "$(uname -s)" in
   Linux*) OS=linux ;;
-  Darwin*) OS=macos ;;
   MINGW* | MSYS* | CYGWIN*) OS=windows ;;
   *)
-    echo "error: unsupported OS: $(uname -s)" >&2
+    echo "error: unsupported OS: $(uname -s) (supported: Linux x64, Windows x64)" >&2
     exit 1
     ;;
 esac

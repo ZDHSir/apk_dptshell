@@ -131,7 +131,7 @@ if [[ -z "$RUN_ID" ]]; then
   exit 1
 fi
 
-echo "Watching run $RUN_ID (this builds four platforms)..."
+echo "Watching run $RUN_ID (this builds Linux x64 and Windows x64)..."
 gh run watch "$RUN_ID" --exit-status
 
 echo "Downloading artifacts..."
