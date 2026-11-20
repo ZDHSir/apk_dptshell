@@ -13,20 +13,69 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-GRAALVM_HOME="${GRAALVM_HOME:-${JAVA_HOME:-}}"
-if [[ -z "$GRAALVM_HOME" || ! -x "$GRAALVM_HOME/bin/native-image" ]]; then
-  for candidate in "$ROOT"/.toolchain/graalvm*/ "$HOME/.sdkman/candidates/java/21.0.2-graalce" "$HOME/.sdkman/candidates/java/current"; do
-    candidate="${candidate%/}"
-    if [[ -x "$candidate/bin/native-image" ]]; then
-      GRAALVM_HOME="$candidate"
-      break
+to_posix_path() {
+  local p="$1"
+  [[ -n "$p" ]] || return 0
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -u "$p" 2>/dev/null || printf '%s\n' "$p"
+  else
+    printf '%s\n' "$p"
+  fi
+}
+
+# Windows ships native-image as native-image.cmd (or .exe); Git Bash also needs
+# GRAALVM_HOME converted from C:\... to /c/... before any test -x.
+find_tool() {
+  local dir="$1" name="$2" ext
+  for ext in "" ".exe" ".cmd" ".bat"; do
+    if [[ -f "$dir/$name$ext" ]]; then
+      printf '%s\n' "$dir/$name$ext"
+      return 0
     fi
   done
-fi
-if [[ -z "$GRAALVM_HOME" || ! -x "$GRAALVM_HOME/bin/native-image" ]]; then
-  echo "error: native-image not found. Set GRAALVM_HOME to a GraalVM JDK 21 installation." >&2
+  return 1
+}
+
+CANDIDATES=()
+[[ -n "${GRAALVM_HOME:-}" ]] && CANDIDATES+=("$(to_posix_path "$GRAALVM_HOME")")
+[[ -n "${JAVA_HOME:-}" ]] && CANDIDATES+=("$(to_posix_path "$JAVA_HOME")")
+for name in native-image native-image.cmd native-image.exe; do
+  if command -v "$name" >/dev/null 2>&1; then
+    discovered="$(command -v "$name")"
+    if root_of_discovered="$(cd "$(dirname "$discovered")/.." 2>/dev/null && pwd)"; then
+      CANDIDATES+=("$root_of_discovered")
+    fi
+    break
+  fi
+done
+for candidate in "$ROOT"/.toolchain/graalvm*/ "$HOME/.sdkman/candidates/java/21.0.2-graalce" "$HOME/.sdkman/candidates/java/current"; do
+  candidate="${candidate%/}"
+  [[ -n "$candidate" ]] && CANDIDATES+=("$candidate")
+done
+
+NATIVE_IMAGE_BIN=""
+GRAALVM_HOME=""
+for candidate in "${CANDIDATES[@]}"; do
+  [[ -d "$candidate" ]] || continue
+  if nimg="$(find_tool "$candidate/bin" native-image)" \
+      && find_tool "$candidate/bin" javac >/dev/null; then
+    NATIVE_IMAGE_BIN="$nimg"
+    GRAALVM_HOME="$(cd "$candidate" && pwd)"
+    break
+  fi
+done
+
+if [[ -z "$NATIVE_IMAGE_BIN" ]]; then
+  echo "error: native-image not found." >&2
+  echo "       Set GRAALVM_HOME to a GraalVM JDK 21 installation with bin/native-image[.cmd|.exe]." >&2
+  echo "       Tried: ${CANDIDATES[*]:-<none>}" >&2
   exit 1
 fi
+
+JAVA_BIN="$(find_tool "$GRAALVM_HOME/bin" java)" || { echo "error: java not found in $GRAALVM_HOME/bin" >&2; exit 1; }
+JAVAC_BIN="$(find_tool "$GRAALVM_HOME/bin" javac)" || { echo "error: javac not found in $GRAALVM_HOME/bin" >&2; exit 1; }
+JAR_BIN="$(find_tool "$GRAALVM_HOME/bin" jar)" || { echo "error: jar not found in $GRAALVM_HOME/bin" >&2; exit 1; }
+JMOD_BIN="$(find_tool "$GRAALVM_HOME/bin" jmod)" || { echo "error: jmod not found in $GRAALVM_HOME/bin" >&2; exit 1; }
 
 JAR="$ROOT/libs/dpt/dpt.jar"
 [[ -f "$JAR" ]] || { echo "error: $JAR is missing (see libs/dpt/README.md)" >&2; exit 1; }
@@ -62,10 +111,6 @@ hash_stdin() {
 # dpt version cannot silently reuse an older extracted copy.
 BUILD_ID="$(cd "$RES" && tar cf - shell-files | hash_stdin | cut -c1-12)"
 printf '%s\n' "$BUILD_ID" > "$RES/goshell-build-id.txt"
-
-JAVA_BIN="$GRAALVM_HOME/bin/java"
-JAR_BIN="$GRAALVM_HOME/bin/jar"
-JMOD_BIN="$GRAALVM_HOME/bin/jmod"
 
 # Java tools must receive native-style paths on Windows; the script itself runs with
 # POSIX paths under Git Bash, so use relative paths for everything passed to them.
@@ -130,7 +175,7 @@ fi
 
 echo "Compiling native-image substitutions (annotations: $ANNOTATIONS_CP)"
 find native/src -name '*.java' > "$BUILD/sources.txt"
-"$GRAALVM_HOME/bin/javac" --release 11 -encoding UTF-8 \
+"$JAVAC_BIN" --release 11 -encoding UTF-8 \
   -cp "libs/dpt/dpt.jar$SEP$ANNOTATIONS_CP" \
   -d "build/native/classes" \
   @"build/native/sources.txt"
@@ -148,7 +193,7 @@ fi
 CONFIG_ARGS=("-H:ConfigurationFileDirectories=$CONFIG_DIRS")
 
 echo "Building native image..."
-"$GRAALVM_HOME/bin/native-image" \
+"$NATIVE_IMAGE_BIN" \
   --no-fallback \
   -Ob \
   --gc=serial \
