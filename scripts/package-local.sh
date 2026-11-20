@@ -42,7 +42,7 @@ else
 fi
 cp libs/dpt/dpt-exclude-classes-template.rules \
    libs/dpt/dpt-protect-config-template.json \
-   README.md "$STAGE/"
+   README.md USAGE.md "$STAGE/"
 
 tar -czf "dist/$NAME.tar.gz" -C build/pkg "$NAME"
 

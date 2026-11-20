@@ -30,6 +30,7 @@ scripts/trace-config.sh       # 重新生成 native-image 配置
 scripts/package-local.sh      # 构建并打包当前平台
 scripts/package-all.sh        # 触发 GitHub Actions 构建四平台并下载产物
 testapp/fixture.apk           # 1.4KB 的最小 APK，用于构建后冒烟测试
+USAGE.md                      # 给最终用户的使用说明（打包时一并附带）
 .github/workflows/release.yml # 四平台构建（native-image 不支持交叉编译）
 ```
 
@@ -81,6 +82,8 @@ scripts/package-all.sh
 ```
 
 `package-all.sh` 依赖 `gh`（GitHub CLI）并已 `gh auth login`，同时要求工作区干净、已配置 `origin` 远程。native-image 本身不支持交叉编译，所以全平台构建只能走 CI。
+
+每个平台的包内含：`goshell`（Windows 为 `goshell.exe`）、规则模板、配置模板、`README.md`、`USAGE.md`，以及对应的 `.sha256`。
 
 ### 更新 dpt 版本
 

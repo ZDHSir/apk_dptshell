@@ -63,7 +63,7 @@ echo "Triggering workflow build-native on $BRANCH..."
 gh workflow run release.yml --ref "$BRANCH"
 
 RUN_ID=""
-for _ in $(seq 1 15); do
+for _ in {1..15}; do
   RUN_ID="$(gh run list --workflow=release.yml --branch "$BRANCH" --limit 1 \
     --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)"
   [[ -n "$RUN_ID" && "$RUN_ID" != "null" ]] && break

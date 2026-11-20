@@ -85,7 +85,7 @@ jobs:
           fi
           cp libs/dpt/dpt-exclude-classes-template.rules \
              libs/dpt/dpt-protect-config-template.json \
-             README.md "pkg/$NAME/"
+             README.md USAGE.md "pkg/$NAME/"
           tar -czf "dist/$NAME.tar.gz" -C pkg "$NAME"
           if command -v sha256sum >/dev/null 2>&1; then
             (cd dist && sha256sum "$NAME.tar.gz" > "$NAME.sha256")
